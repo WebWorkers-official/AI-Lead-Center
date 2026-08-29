@@ -35,7 +35,7 @@ Given this enquiry, analyze it and return ONLY a valid JSON object (no markdown,
 Scoring guidance:
 - Budget signals matter a lot: higher budget ranges = higher score
 - Urgency/specificity in the message increases score (vague one-liners score lower)
-- Category: hot = 75-100, warm = 40-74, cold = 0-39
+- Category: hot = 80-100, warm = 50-79, cold = 0-49
 
 Lead details:
 Name: ${lead.name}

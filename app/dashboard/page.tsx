@@ -32,22 +32,19 @@ export default function DashboardPage() {
   // --- Theme state ---
   const [isDark, setIsDark] = useState(true);
 
-  // Load theme from localStorage
   useEffect(() => {
     const stored = localStorage.getItem("theme");
     if (stored === "light") setIsDark(false);
     else if (stored === "dark") setIsDark(true);
-    else setIsDark(true); // default dark
+    else setIsDark(true);
   }, []);
 
-  // Persist theme
   const toggleTheme = () => {
     const newTheme = !isDark;
     setIsDark(newTheme);
     localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
 
-  // --- Auth & data ---
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -94,7 +91,10 @@ export default function DashboardPage() {
     setUpdatingId(null);
   }
 
-  // --- Loading ---
+  function goToLead(id: string) {
+    router.push(`/dashboard/leads/${id}`);
+  }
+
   if (checkingAuth) {
     return (
       <div
@@ -119,13 +119,11 @@ export default function DashboardPage() {
     );
   }
 
-  // --- Stats ---
   const total = leads.length;
   const qualified = leads.filter((l) => (l.ai_score ?? 0) >= 40).length;
   const hot = leads.filter((l) => l.ai_category === "hot");
   const converted = leads.filter((l) => l.status === "won").length;
 
-  // --- Follow-up reminders: leads still "new" after FOLLOW_UP_HOURS ---
   const needsFollowUp = leads.filter((l) => {
     if (l.status !== "new") return false;
     const hoursSinceCreated =
@@ -144,7 +142,6 @@ export default function DashboardPage() {
         isDark ? "bg-[#08090a] text-gray-100" : "bg-[#f7f8f5] text-gray-900"
       }`}
     >
-      {/* ambient background glow — single accent, kept quiet */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
           className={`absolute -top-40 -left-40 w-[32rem] h-[32rem] rounded-full blur-[130px] transition-opacity duration-700 ${
@@ -158,7 +155,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* ---- NAVBAR ---- */}
       <nav
         className={`fixed top-0 left-0 w-full z-50 backdrop-blur-xl border-b transition-colors duration-500 ${
           isDark
@@ -208,7 +204,6 @@ export default function DashboardPage() {
               Sign out
             </button>
 
-            {/* Theme toggle */}
             <button
               onClick={toggleTheme}
               aria-label="Toggle theme"
@@ -230,100 +225,59 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      {/* ---- MAIN CONTENT (pt-24 for navbar space) ---- */}
       <main className="relative pt-28 pb-16 px-6 max-w-7xl mx-auto">
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-14">
-          <StatCard
-            label="Total Leads"
-            value={total}
-            icon="📊"
-            accent="lime"
-            isDark={isDark}
-          />
-          <StatCard
-            label="Qualified"
-            value={qualified}
-            icon="✅"
-            accent="emerald"
-            isDark={isDark}
-          />
-          <StatCard
-            label="Hot Leads"
-            value={hot.length}
-            icon="🔥"
-            accent="amber"
-            isDark={isDark}
-          />
-          <StatCard
-            label="Converted"
-            value={converted}
-            icon="🏆"
-            accent="teal"
-            isDark={isDark}
-          />
+          <StatCard label="Total Leads" value={total} icon="📊" accent="lime" isDark={isDark} />
+          <StatCard label="Qualified" value={qualified} icon="✅" accent="emerald" isDark={isDark} />
+          <StatCard label="Hot Leads" value={hot.length} icon="🔥" accent="amber" isDark={isDark} />
+          <StatCard label="Converted" value={converted} icon="🏆" accent="teal" isDark={isDark} />
         </div>
 
         {/* Needs Follow-Up */}
         {needsFollowUp.length > 0 && (
           <div className="mb-14">
-            <SectionHeading
-              icon="⏰"
-              title={`Needs Follow-Up (${needsFollowUp.length})`}
-              isDark={isDark}
-            />
+            <SectionHeading icon="⏰" title={`Needs Follow-Up (${needsFollowUp.length})`} isDark={isDark} />
             <div
               className={`rounded-2xl p-5 border backdrop-blur-sm ${
-                isDark
-                  ? "bg-yellow-500/[0.06] border-yellow-500/20"
-                  : "bg-yellow-50 border-yellow-200"
+                isDark ? "bg-yellow-500/[0.06] border-yellow-500/20" : "bg-yellow-50 border-yellow-200"
               }`}
             >
-              <p
-                className={`text-sm mb-4 ${
-                  isDark ? "text-yellow-200/80" : "text-yellow-800"
-                }`}
-              >
-                These leads have been sitting for over {FOLLOW_UP_HOURS} hours
-                without a response.
+              <p className={`text-sm mb-4 ${isDark ? "text-yellow-200/80" : "text-yellow-800"}`}>
+                These leads have been sitting for over {FOLLOW_UP_HOURS} hours without a response.
               </p>
               <div className="space-y-2">
                 {needsFollowUp.map((lead) => (
                   <div
                     key={lead.id}
-                    className={`flex items-center justify-between rounded-xl px-4 py-3 ${
-                      isDark ? "bg-white/[0.03]" : "bg-white"
+                    onClick={() => goToLead(lead.id)}
+                    className={`flex items-center justify-between rounded-xl px-4 py-3 cursor-pointer transition ${
+                      isDark ? "bg-white/[0.03] hover:bg-white/[0.06]" : "bg-white hover:bg-gray-50"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <Avatar name={lead.name} isDark={isDark} tone="lime" />
                       <div>
-                        <span className="font-semibold text-sm">
-                          {lead.name}
-                        </span>
-                        <span
-                          className={`text-xs ml-2 ${
-                            isDark ? "text-gray-500" : "text-gray-500"
-                          }`}
-                        >
+                        <span className="font-semibold text-sm">{lead.name}</span>
+                        <span className={`text-xs ml-2 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
                           {lead.company || "No company"} ·{" "}
-                          {lead.ai_score !== null
-                            ? `${lead.ai_score}/100`
-                            : "Not scored"}
+                          {lead.ai_score !== null ? `${lead.ai_score}/100` : "Not scored"}
                         </span>
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <a
-                        href={`mailto:${lead.email}?body=${encodeURIComponent(
-                          lead.ai_suggested_reply || ""
-                        )}`}
+                        href={`mailto:${lead.email}?body=${encodeURIComponent(lead.ai_suggested_reply || "")}`}
+                        onClick={(e) => e.stopPropagation()}
                         className="text-xs font-bold rounded-xl px-4 py-1.5 transition-all duration-200 bg-lime-400 hover:bg-lime-300 text-black"
                       >
                         ✉️ Email
                       </a>
                       <button
-                        onClick={() => updateStatus(lead.id, "contacted")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateStatus(lead.id, "contacted");
+                        }}
                         disabled={updatingId === lead.id}
                         className={`text-xs font-semibold rounded-xl px-4 py-1.5 transition-all duration-200 disabled:opacity-50 ${
                           isDark
@@ -348,40 +302,12 @@ export default function DashboardPage() {
             {STAGES.map((stage) => {
               const count = pipelineCounts[stage] || 0;
               const share = total > 0 ? Math.round((count / total) * 100) : 0;
-              const colorMap: Record<
-                string,
-                { bg: string; text: string; border: string; bar: string }
-              > = {
-                new: {
-                  bg: isDark ? "bg-teal-500/[0.08]" : "bg-teal-50",
-                  text: isDark ? "text-teal-400" : "text-teal-700",
-                  border: isDark ? "border-teal-500/20" : "border-teal-200",
-                  bar: "bg-teal-400",
-                },
-                contacted: {
-                  bg: isDark ? "bg-cyan-500/[0.08]" : "bg-cyan-50",
-                  text: isDark ? "text-cyan-400" : "text-cyan-700",
-                  border: isDark ? "border-cyan-500/20" : "border-cyan-200",
-                  bar: "bg-cyan-400",
-                },
-                qualified: {
-                  bg: isDark ? "bg-lime-500/[0.08]" : "bg-lime-50",
-                  text: isDark ? "text-lime-400" : "text-lime-700",
-                  border: isDark ? "border-lime-500/20" : "border-lime-200",
-                  bar: "bg-lime-400",
-                },
-                won: {
-                  bg: isDark ? "bg-emerald-500/[0.08]" : "bg-emerald-50",
-                  text: isDark ? "text-emerald-400" : "text-emerald-700",
-                  border: isDark ? "border-emerald-500/20" : "border-emerald-200",
-                  bar: "bg-emerald-400",
-                },
-                lost: {
-                  bg: isDark ? "bg-rose-500/[0.08]" : "bg-rose-50",
-                  text: isDark ? "text-rose-400" : "text-rose-700",
-                  border: isDark ? "border-rose-500/20" : "border-rose-200",
-                  bar: "bg-rose-400",
-                },
+              const colorMap: Record<string, { bg: string; text: string; border: string; bar: string }> = {
+                new: { bg: isDark ? "bg-teal-500/[0.08]" : "bg-teal-50", text: isDark ? "text-teal-400" : "text-teal-700", border: isDark ? "border-teal-500/20" : "border-teal-200", bar: "bg-teal-400" },
+                contacted: { bg: isDark ? "bg-cyan-500/[0.08]" : "bg-cyan-50", text: isDark ? "text-cyan-400" : "text-cyan-700", border: isDark ? "border-cyan-500/20" : "border-cyan-200", bar: "bg-cyan-400" },
+                qualified: { bg: isDark ? "bg-lime-500/[0.08]" : "bg-lime-50", text: isDark ? "text-lime-400" : "text-lime-700", border: isDark ? "border-lime-500/20" : "border-lime-200", bar: "bg-lime-400" },
+                won: { bg: isDark ? "bg-emerald-500/[0.08]" : "bg-emerald-50", text: isDark ? "text-emerald-400" : "text-emerald-700", border: isDark ? "border-emerald-500/20" : "border-emerald-200", bar: "bg-emerald-400" },
+                lost: { bg: isDark ? "bg-rose-500/[0.08]" : "bg-rose-50", text: isDark ? "text-rose-400" : "text-rose-700", border: isDark ? "border-rose-500/20" : "border-rose-200", bar: "bg-rose-400" },
               };
               const colors = colorMap[stage];
               return (
@@ -391,25 +317,12 @@ export default function DashboardPage() {
                     isDark ? "hover:shadow-black/40" : "hover:shadow-gray-300/50"
                   }`}
                 >
-                  <div className={`text-3xl font-bold tabular-nums ${colors.text}`}>
-                    {count}
-                  </div>
-                  <div
-                    className={`text-[11px] font-semibold uppercase tracking-wider mt-1 ${
-                      isDark ? "text-gray-500" : "text-gray-500"
-                    }`}
-                  >
+                  <div className={`text-3xl font-bold tabular-nums ${colors.text}`}>{count}</div>
+                  <div className={`text-[11px] font-semibold uppercase tracking-wider mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
                     {stage}
                   </div>
-                  <div
-                    className={`mt-3 h-1 rounded-full overflow-hidden ${
-                      isDark ? "bg-white/[0.06]" : "bg-black/[0.06]"
-                    }`}
-                  >
-                    <div
-                      className={`h-full rounded-full ${colors.bar} transition-all duration-500`}
-                      style={{ width: `${share}%` }}
-                    />
+                  <div className={`mt-3 h-1 rounded-full overflow-hidden ${isDark ? "bg-white/[0.06]" : "bg-black/[0.06]"}`}>
+                    <div className={`h-full rounded-full ${colors.bar} transition-all duration-500`} style={{ width: `${share}%` }} />
                   </div>
                 </div>
               );
@@ -425,7 +338,8 @@ export default function DashboardPage() {
               {hot.map((lead) => (
                 <div
                   key={lead.id}
-                  className={`relative overflow-hidden rounded-2xl p-6 border backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 ${
+                  onClick={() => goToLead(lead.id)}
+                  className={`relative overflow-hidden rounded-2xl p-6 border backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 cursor-pointer ${
                     isDark
                       ? "bg-gradient-to-br from-amber-500/[0.08] via-orange-500/[0.03] to-transparent border-amber-500/20 hover:shadow-2xl hover:shadow-amber-500/10"
                       : "bg-gradient-to-br from-amber-50 via-orange-50/60 to-white border-amber-200/70 hover:shadow-2xl hover:shadow-amber-300/30"
@@ -435,57 +349,43 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-3">
                       <Avatar name={lead.name} isDark={isDark} tone="amber" />
                       <div>
-                        <div className="text-[15px] font-bold leading-tight">
-                          {lead.name}
-                        </div>
-                        <div
-                          className={`text-sm ${
-                            isDark ? "text-gray-500" : "text-gray-500"
-                          }`}
-                        >
+                        <div className="text-[15px] font-bold leading-tight">{lead.name}</div>
+                        <div className={`text-sm ${isDark ? "text-gray-500" : "text-gray-500"}`}>
                           {lead.company || "No company"}
                         </div>
                       </div>
                     </div>
                     <div
                       className={`shrink-0 text-base font-bold px-3.5 py-1 rounded-full tabular-nums ${
-                        isDark
-                          ? "text-amber-300 bg-amber-500/[0.12]"
-                          : "text-amber-700 bg-amber-100"
+                        isDark ? "text-amber-300 bg-amber-500/[0.12]" : "text-amber-700 bg-amber-100"
                       }`}
                     >
                       {lead.ai_score}/100
                     </div>
                   </div>
                   {lead.budget && (
-                    <div
-                      className={`inline-flex items-center gap-1.5 text-sm mb-3 font-medium ${
-                        isDark ? "text-gray-300" : "text-gray-700"
-                      }`}
-                    >
+                    <div className={`inline-flex items-center gap-1.5 text-sm mb-3 font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>
                       <span>💰</span> {lead.budget}
                     </div>
                   )}
                   {lead.ai_reasoning && (
-                    <p
-                      className={`text-sm mb-5 leading-relaxed ${
-                        isDark ? "text-gray-400" : "text-gray-600"
-                      }`}
-                    >
+                    <p className={`text-sm mb-5 leading-relaxed ${isDark ? "text-gray-400" : "text-gray-600"}`}>
                       {lead.ai_reasoning}
                     </p>
                   )}
                   <div className="flex gap-3 flex-wrap">
                     <a
-                      href={`mailto:${lead.email}?body=${encodeURIComponent(
-                        lead.ai_suggested_reply || ""
-                      )}`}
+                      href={`mailto:${lead.email}?body=${encodeURIComponent(lead.ai_suggested_reply || "")}`}
+                      onClick={(e) => e.stopPropagation()}
                       className="text-xs font-bold rounded-xl px-5 py-2.5 transition-all duration-200 shadow-lg hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60 bg-lime-400 hover:bg-lime-300 text-black shadow-lime-500/20"
                     >
                       ✉️ Send Email
                     </a>
                     <button
-                      onClick={() => updateStatus(lead.id, "contacted")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateStatus(lead.id, "contacted");
+                      }}
                       disabled={updatingId === lead.id}
                       className={`text-xs font-semibold rounded-xl px-5 py-2.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 ${
                         isDark
@@ -507,9 +407,7 @@ export default function DashboardPage() {
           <SectionHeading icon="📋" title="All Leads" isDark={isDark} />
           <div
             className={`rounded-2xl overflow-hidden border backdrop-blur-sm transition-colors duration-300 ${
-              isDark
-                ? "bg-white/[0.02] border-white/[0.08]"
-                : "bg-white border-gray-200 shadow-sm"
+              isDark ? "bg-white/[0.02] border-white/[0.08]" : "bg-white border-gray-200 shadow-sm"
             }`}
           >
             {loading ? (
@@ -517,26 +415,12 @@ export default function DashboardPage() {
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div
                     key={i}
-                    className={`flex items-center gap-4 px-4 py-4 rounded-xl animate-pulse ${
-                      isDark ? "bg-white/[0.02]" : "bg-gray-50"
-                    } ${i !== 4 ? "mb-2" : ""}`}
+                    className={`flex items-center gap-4 px-4 py-4 rounded-xl animate-pulse ${isDark ? "bg-white/[0.02]" : "bg-gray-50"} ${i !== 4 ? "mb-2" : ""}`}
                   >
-                    <div
-                      className={`w-9 h-9 rounded-full ${
-                        isDark ? "bg-white/10" : "bg-gray-200"
-                      }`}
-                    />
+                    <div className={`w-9 h-9 rounded-full ${isDark ? "bg-white/10" : "bg-gray-200"}`} />
                     <div className="flex-1 space-y-2">
-                      <div
-                        className={`h-3 w-1/4 rounded ${
-                          isDark ? "bg-white/10" : "bg-gray-200"
-                        }`}
-                      />
-                      <div
-                        className={`h-2.5 w-1/6 rounded ${
-                          isDark ? "bg-white/5" : "bg-gray-100"
-                        }`}
-                      />
+                      <div className={`h-3 w-1/4 rounded ${isDark ? "bg-white/10" : "bg-gray-200"}`} />
+                      <div className={`h-2.5 w-1/6 rounded ${isDark ? "bg-white/5" : "bg-gray-100"}`} />
                     </div>
                   </div>
                 ))}
@@ -544,18 +428,8 @@ export default function DashboardPage() {
             ) : leads.length === 0 ? (
               <div className="p-12 text-center">
                 <div className="text-3xl mb-3">📭</div>
-                <p
-                  className={`text-sm font-medium ${
-                    isDark ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
-                  No leads yet
-                </p>
-                <p
-                  className={`text-sm mt-1 ${
-                    isDark ? "text-gray-500" : "text-gray-500"
-                  }`}
-                >
+                <p className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>No leads yet</p>
+                <p className={`text-sm mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
                   Submit the form on the landing page to test.
                 </p>
               </div>
@@ -565,39 +439,24 @@ export default function DashboardPage() {
                   <thead>
                     <tr
                       className={`text-left border-b ${
-                        isDark
-                          ? "text-gray-500 border-white/[0.08] bg-white/[0.02]"
-                          : "text-gray-500 border-gray-200 bg-gray-50/80"
+                        isDark ? "text-gray-500 border-white/[0.08] bg-white/[0.02]" : "text-gray-500 border-gray-200 bg-gray-50/80"
                       }`}
                     >
-                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">
-                        Company
-                      </th>
-                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">
-                        Score
-                      </th>
-                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">
-                        Category
-                      </th>
-                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">
-                        Submitted
-                      </th>
+                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">Name</th>
+                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">Company</th>
+                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">Score</th>
+                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">Category</th>
+                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">Status</th>
+                      <th className="p-4 font-semibold text-xs uppercase tracking-wider">Submitted</th>
                     </tr>
                   </thead>
                   <tbody>
                     {leads.map((lead) => (
                       <tr
                         key={lead.id}
-                        className={`border-b transition-colors duration-150 ${
-                          isDark
-                            ? "border-white/[0.05] hover:bg-white/[0.03]"
-                            : "border-gray-100 hover:bg-gray-50/80"
+                        onClick={() => goToLead(lead.id)}
+                        className={`border-b transition-colors duration-150 cursor-pointer ${
+                          isDark ? "border-white/[0.05] hover:bg-white/[0.03]" : "border-gray-100 hover:bg-gray-50/80"
                         }`}
                       >
                         <td className="p-4">
@@ -606,13 +465,7 @@ export default function DashboardPage() {
                             <span className="font-semibold">{lead.name}</span>
                           </div>
                         </td>
-                        <td
-                          className={`p-4 ${
-                            isDark ? "text-gray-400" : "text-gray-600"
-                          }`}
-                        >
-                          {lead.company || "—"}
-                        </td>
+                        <td className={`p-4 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{lead.company || "—"}</td>
                         <td className="p-4">
                           {lead.ai_score !== null ? (
                             <span
@@ -651,11 +504,7 @@ export default function DashboardPage() {
                             >
                               <span
                                 className={`w-1.5 h-1.5 rounded-full ${
-                                  lead.ai_category === "hot"
-                                    ? "bg-amber-400"
-                                    : lead.ai_category === "warm"
-                                    ? "bg-lime-400"
-                                    : "bg-teal-400"
+                                  lead.ai_category === "hot" ? "bg-amber-400" : lead.ai_category === "warm" ? "bg-lime-400" : "bg-teal-400"
                                 }`}
                               />
                               {lead.ai_category}
@@ -664,7 +513,7 @@ export default function DashboardPage() {
                             "—"
                           )}
                         </td>
-                        <td className="p-4">
+                        <td className="p-4" onClick={(e) => e.stopPropagation()}>
                           <select
                             value={lead.status}
                             onChange={(e) => updateStatus(lead.id, e.target.value)}
@@ -682,11 +531,7 @@ export default function DashboardPage() {
                             ))}
                           </select>
                         </td>
-                        <td
-                          className={`p-4 text-xs whitespace-nowrap tabular-nums ${
-                            isDark ? "text-gray-500" : "text-gray-400"
-                          }`}
-                        >
+                        <td className={`p-4 text-xs whitespace-nowrap tabular-nums ${isDark ? "text-gray-500" : "text-gray-400"}`}>
                           {new Date(lead.created_at).toLocaleString()}
                         </td>
                       </tr>
@@ -702,47 +547,17 @@ export default function DashboardPage() {
   );
 }
 
-// ---- Section Heading ----
-function SectionHeading({
-  icon,
-  title,
-  isDark,
-}: {
-  icon: string;
-  title: string;
-  isDark: boolean;
-}) {
+function SectionHeading({ icon, title, isDark }: { icon: string; title: string; isDark: boolean }) {
   return (
-    <h2
-      className={`text-lg font-bold mb-5 tracking-tight flex items-center gap-2 ${
-        isDark ? "text-white" : "text-gray-900"
-      }`}
-    >
+    <h2 className={`text-lg font-bold mb-5 tracking-tight flex items-center gap-2 ${isDark ? "text-white" : "text-gray-900"}`}>
       <span className="text-base">{icon}</span> {title}
     </h2>
   );
 }
 
-// ---- Avatar Component ----
-function Avatar({
-  name,
-  isDark,
-  tone = "lime",
-}: {
-  name: string;
-  isDark: boolean;
-  tone?: "lime" | "amber";
-}) {
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-
-  const toneClasses =
-    tone === "amber" ? "bg-amber-400 text-black" : "bg-lime-400 text-black";
-
+function Avatar({ name, isDark, tone = "lime" }: { name: string; isDark: boolean; tone?: "lime" | "amber" }) {
+  const initials = name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+  const toneClasses = tone === "amber" ? "bg-amber-400 text-black" : "bg-lime-400 text-black";
   return (
     <div
       className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ${toneClasses} ${
@@ -754,31 +569,11 @@ function Avatar({
   );
 }
 
-// ---- Stat Card Component ----
-const ACCENTS: Record<
-  string,
-  { icon: string; value: string; bar: string }
-> = {
-  lime: {
-    icon: "bg-lime-400/10 text-lime-400",
-    value: "text-lime-400",
-    bar: "bg-lime-400",
-  },
-  emerald: {
-    icon: "bg-emerald-400/10 text-emerald-400",
-    value: "text-emerald-400",
-    bar: "bg-emerald-400",
-  },
-  amber: {
-    icon: "bg-amber-400/10 text-amber-400",
-    value: "text-amber-400",
-    bar: "bg-amber-400",
-  },
-  teal: {
-    icon: "bg-teal-400/10 text-teal-400",
-    value: "text-teal-400",
-    bar: "bg-teal-400",
-  },
+const ACCENTS: Record<string, { icon: string; value: string; bar: string }> = {
+  lime: { icon: "bg-lime-400/10 text-lime-400", value: "text-lime-400", bar: "bg-lime-400" },
+  emerald: { icon: "bg-emerald-400/10 text-emerald-400", value: "text-emerald-400", bar: "bg-emerald-400" },
+  amber: { icon: "bg-amber-400/10 text-amber-400", value: "text-amber-400", bar: "bg-amber-400" },
+  teal: { icon: "bg-teal-400/10 text-teal-400", value: "text-teal-400", bar: "bg-teal-400" },
 };
 
 function StatCard({
@@ -805,24 +600,10 @@ function StatCard({
     >
       <div className={`absolute inset-x-0 top-0 h-0.5 ${a.bar} opacity-70`} />
       <div className="flex items-center justify-between">
-        <span
-          className={`flex items-center justify-center w-11 h-11 rounded-xl text-xl ${
-            isDark ? a.icon : "bg-gray-50"
-          }`}
-        >
-          {icon}
-        </span>
-        <span className={`text-4xl font-extrabold tabular-nums ${a.value}`}>
-          {value}
-        </span>
+        <span className={`flex items-center justify-center w-11 h-11 rounded-xl text-xl ${isDark ? a.icon : "bg-gray-50"}`}>{icon}</span>
+        <span className={`text-4xl font-extrabold tabular-nums ${a.value}`}>{value}</span>
       </div>
-      <div
-        className={`text-sm font-medium mt-3 ${
-          isDark ? "text-gray-400" : "text-gray-500"
-        }`}
-      >
-        {label}
-      </div>
+      <div className={`text-sm font-medium mt-3 ${isDark ? "text-gray-400" : "text-gray-500"}`}>{label}</div>
     </div>
   );
 }
