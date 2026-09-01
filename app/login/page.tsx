@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Head from "next/head";
 import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
@@ -32,53 +33,64 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#0b0b12] px-6">
-      <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-2xl p-8">
-        <h1 className="text-xl font-semibold mb-1 text-white">
-          AI Lead Command Center
-        </h1>
-        <p className="text-gray-400 text-sm mb-6">Sign in to your dashboard</p>
+    <>
+      <Head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap"
+          rel="stylesheet"
+        />
+      </Head>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-200">
-              Email
-            </label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="you@company.com"
-            />
+      <main className="min-h-screen flex items-center justify-center bg-[#0a0a0a] px-6 font-['Inter',system-ui,sans-serif] antialiased">
+        <div className="w-full max-w-sm bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6 sm:p-7 backdrop-blur-sm transition-colors duration-300">
+          <div className="mb-6">
+            <h1 className="text-xl font-semibold tracking-tight text-white">
+              AI Lead Command Center
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">Sign in to your dashboard</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-200">
-              Password
-            </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="••••••••"
-            />
-          </div>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-[0.06em] text-gray-500 mb-1.5">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-xl bg-white/[0.03] border border-white/10 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition"
+                placeholder="you@company.com"
+              />
+            </div>
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-[0.06em] text-gray-500 mb-1.5">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-xl bg-white/[0.03] border border-white/10 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition"
+                placeholder="••••••••"
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-medium rounded-lg px-4 py-3 transition"
-          >
-            {loading ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
-      </div>
-    </main>
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white font-medium rounded-xl px-4 py-2.5 transition duration-200 text-sm"
+            >
+              {loading ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+        </div>
+      </main>
+    </>
   );
 }
