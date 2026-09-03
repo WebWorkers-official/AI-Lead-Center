@@ -35,8 +35,13 @@ export default function Home() {
         throw new Error(data.error || "Failed to submit. Please try again.");
       }
 
+      // Fire the scoring request in the background — do NOT await it.
+      fetch(`/api/leads/${data.id}/score`, { method: "POST" }).catch(() => {});
+
       setStatus("success");
       form.reset();
+
+
     } catch (err: any) {
       setStatus("error");
       setErrorMsg(err.message || "Something went wrong.");
@@ -45,8 +50,18 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#13131f]">
+      {/* Admin link */}
+      <div className="flex justify-end px-6 pt-6">
+        <a
+          href="/dashboard"
+          className="text-xs text-gray-500 hover:text-gray-300 transition"
+        >
+          Admin Dashboard →
+        </a>
+      </div>
+
       {/* Hero */}
-      <section className="max-w-4xl mx-auto px-6 pt-24 pb-16 text-center">
+      <section className="max-w-4xl mx-auto px-6 pt-16 pb-16 text-center">
         <span className="inline-block text-xs font-semibold tracking-wide text-brand-500 bg-brand-500/10 rounded-full px-3 py-1 mb-6">
           AI-POWERED LEAD MANAGEMENT
         </span>

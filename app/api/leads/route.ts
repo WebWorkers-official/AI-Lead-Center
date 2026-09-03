@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
-import { scoreLead } from "@/lib/scoreLead";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,45 +21,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let aiScore: number | null = null;
-    let aiCategory: string | null = null;
-    let aiReasoning: string | null = null;
-    let aiSuggestedReply: string | null = null;
+    // Insert immediately, WITHOUT waiting for AI scoring.
+    // Scoring happens in a separate follow-up request (see /score route)
+    // so the visitor gets an instant response instead of waiting 5-10s.
+    const { data, error } = await supabaseAdmin
+      .from("leads")
+      .insert([
+        {
+          name,
+          email,
+          company: company || null,
+          budget: budget || null,
+          message,
+          status: "new",
+        },
+      ])
+      .select("id")
+      .single();
 
-    try {
-      const result = await scoreLead({ name, company, budget, message });
-      aiScore = result.score;
-      aiCategory = result.category;
-      aiReasoning = result.reasoning;
-      aiSuggestedReply = result.suggested_reply;
-    } catch (scoringError) {
-      console.error("Lead scoring failed (saving lead anyway):", scoringError);
-    }
-
-    const { error } = await supabase.from("leads").insert([
-      {
-        name,
-        email,
-        company: company || null,
-        budget: budget || null,
-        message,
-        status: "new",
-        ai_score: aiScore,
-        ai_category: aiCategory,
-        ai_reasoning: aiReasoning,
-        ai_suggested_reply: aiSuggestedReply,
-      },
-    ]);
-
-    if (error) {
+    if (error || !data) {
       console.error("Supabase insert error:", error);
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: error?.message || "Failed to save lead." },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ success: true, score: aiScore, category: aiCategory });
+    return NextResponse.json({ success: true, id: data.id });
   } catch (err) {
     console.error("Unexpected error:", err);
     return NextResponse.json(
