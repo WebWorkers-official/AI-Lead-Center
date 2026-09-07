@@ -33,6 +33,7 @@ export async function POST(
         ai_score: result.score,
         ai_category: result.category,
         ai_reasoning: result.reasoning,
+        ai_reasons_bullets: JSON.stringify(result.reasons),
         ai_suggested_reply: result.suggested_reply,
       })
       .eq("id", params.id);
@@ -47,8 +48,6 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    // This runs in the background — a failure here just means the lead
-    // stays unscored, which is fine. It's still saved and visible.
     console.error("Background scoring failed:", err);
     return NextResponse.json(
       { success: false, error: "Scoring failed." },

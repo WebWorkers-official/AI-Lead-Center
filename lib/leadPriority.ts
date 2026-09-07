@@ -8,8 +8,8 @@ export function getPriorityCategory(
   score: number | null | undefined
 ): PriorityCategory {
   if (score === null || score === undefined) return "unscored";
-  if (score >= 80) return "hot";
-  if (score >= 50) return "warm";
+  if (score >= 70) return "hot";
+  if (score >= 40) return "warm";
   return "cold";
 }
 

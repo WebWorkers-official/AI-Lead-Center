@@ -18,6 +18,7 @@ export default function Home() {
     const payload = {
       name: formData.get("name"),
       email: formData.get("email"),
+      phone: formData.get("phone"),
       company: formData.get("company"),
       budget: formData.get("budget"),
       message: formData.get("message"),
@@ -120,6 +121,18 @@ export default function Home() {
                   required
                   className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
                   placeholder="jane@company.com"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Phone (WhatsApp)
+                </label>
+                <input
+                  name="phone"
+                  type="tel"
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="+91 98765 43210"
                 />
               </div>
 

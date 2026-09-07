@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isLikelySpam } from "@/lib/spamCheck";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, email, company, budget, message } = body;
+    const { name, email, phone, company, budget, message } = body;
 
     if (!name || !email || !message) {
       return NextResponse.json(
@@ -21,6 +22,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (isLikelySpam(message)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Please enter a real message describing your enquiry.",
+        },
+        { status: 400 }
+      );
+    }
+
     // Insert immediately, WITHOUT waiting for AI scoring.
     // Scoring happens in a separate follow-up request (see /score route)
     // so the visitor gets an instant response instead of waiting 5-10s.
@@ -30,6 +41,7 @@ export async function POST(req: NextRequest) {
         {
           name,
           email,
+          phone: phone || null,
           company: company || null,
           budget: budget || null,
           message,

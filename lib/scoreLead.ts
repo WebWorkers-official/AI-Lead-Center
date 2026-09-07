@@ -7,7 +7,8 @@ const GEMINI_MODEL = "gemini-3.6-flash"; // fast + free-tier friendly
 interface LeadScoreResult {
   score: number; // 0-100
   category: "hot" | "warm" | "cold";
-  reasoning: string;
+  reasoning: string; // one-line summary
+  reasons: string[]; // 2-4 short bullet points explaining the score
   suggested_reply: string;
 }
 
@@ -28,14 +29,26 @@ Given this enquiry, analyze it and return ONLY a valid JSON object (no markdown,
 {
   "score": <integer 0-100, likelihood this lead converts to a paying client>,
   "category": "<hot|warm|cold>",
-  "reasoning": "<one or two sentence explanation of the score>",
+  "reasoning": "<one sentence summary of the overall assessment>",
+  "reasons": ["<short phrase, 3-8 words>", "<short phrase>", "<short phrase>"],
   "suggested_reply": "<a short, personalized 2-3 sentence email reply to send this lead>"
 }
 
-Scoring guidance:
-- Budget signals matter a lot: higher budget ranges = higher score
-- Urgency/specificity in the message increases score (vague one-liners score lower)
-- Category: hot = 80-100, warm = 50-79, cold = 0-49
+Score using ONLY these four signals:
+1. Stated budget — a real number/range carries significant weight
+2. Urgency / timeline — a stated start date or urgency increases the score
+3. The message itself — specificity and clarity of what they're asking for
+4. Specific need described — a concrete request beats a vague one
+
+Do NOT factor in the company name, how established the company sounds, or company size. Many legitimate leads are brand-new startups or solo founders — do not penalize them for that. The company field is context only, never a scoring input.
+
+Do NOT score based on message length. A short message that clearly states a budget and a specific need should score just as high as a long one with the same signals. A long message that is vague or generic should NOT score higher just because it's long.
+
+If a signal is missing (e.g. no budget mentioned, no timeline), note that specifically in "reasons" rather than assuming it's bad — missing info is a reason to ask a follow-up question, not automatically a low score.
+
+Category: hot = 70-100, warm = 40-69, cold = 0-39
+
+"reasons" should be 2-4 short, specific bullet phrases (not full sentences) that together justify the score — e.g. "Clear budget stated", "No timeline mentioned", "Specific automation need described"
 
 Lead details:
 Name: ${lead.name}
@@ -83,6 +96,10 @@ Message: ${lead.message}`;
     parsed.score > 100
   ) {
     throw new Error("Gemini returned an invalid score.");
+  }
+
+  if (!Array.isArray(parsed.reasons)) {
+    parsed.reasons = [];
   }
 
   return parsed;
