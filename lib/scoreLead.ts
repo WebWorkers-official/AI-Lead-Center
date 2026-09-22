@@ -19,7 +19,9 @@ export async function scoreLead(lead: {
   message: string;
 }): Promise<LeadScoreResult> {
   if (!GEMINI_API_KEY) {
-    throw new Error("Missing GEMINI_API_KEY in environment variables.");
+    throw new Error(
+      "Missing GEMINI_API_KEY in environment variables."
+    );
   }
 
   const prompt = `You are a B2B lead qualification engine for an agency that sells AI automation services.
@@ -56,46 +58,149 @@ Company: ${lead.company || "Not provided"}
 Budget: ${lead.budget || "Not provided"}
 Message: ${lead.message}`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.3,
-          responseMimeType: "application/json",
-        },
-      }),
-    }
-  );
+  // -----------------------------------
+  // Gemini request with retry handling
+  // -----------------------------------
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini API error (${res.status}): ${errText}`);
+  const maxAttempts = 3;
+
+  let res: Response | null = null;
+  let lastError = "";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: prompt }],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.3,
+              responseMimeType: "application/json",
+            },
+          }),
+        }
+      );
+
+      // Success
+      if (res.ok) {
+        break;
+      }
+
+      const errText = await res.text();
+
+      lastError = `Gemini API error (${res.status}): ${errText}`;
+
+      // Retry only temporary/rate-limit errors
+      if (
+        res.status !== 503 &&
+        res.status !== 429
+      ) {
+        throw new Error(lastError);
+      }
+
+      console.warn(
+        `Gemini temporary error (${res.status}). Attempt ${attempt}/${maxAttempts}.`
+      );
+
+      if (attempt < maxAttempts) {
+        const delay = 1500 * Math.pow(2, attempt - 1);
+
+        console.log(
+          `Retrying Gemini in ${delay}ms...`
+        );
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, delay)
+        );
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        lastError = error.message;
+      } else {
+        lastError = String(error);
+      }
+
+      // If fetch itself failed, retry.
+      if (attempt < maxAttempts) {
+        const delay = 1500 * Math.pow(2, attempt - 1);
+
+        console.warn(
+          `Gemini request failed. Retrying in ${delay}ms...`
+        );
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, delay)
+        );
+      }
+    }
   }
 
+  // -----------------------------------
+  // All attempts failed
+  // -----------------------------------
+
+  if (!res || !res.ok) {
+    throw new Error(
+      lastError || "Gemini request failed after retries."
+    );
+  }
+
+  // -----------------------------------
+  // Parse Gemini response
+  // -----------------------------------
+
   const data = await res.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  const rawText =
+    data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
   if (!rawText) {
-    throw new Error("Gemini returned an empty response.");
+    throw new Error(
+      "Gemini returned an empty response."
+    );
   }
 
   let parsed: LeadScoreResult;
+
   try {
     parsed = JSON.parse(rawText);
   } catch {
-    throw new Error(`Failed to parse Gemini response as JSON: ${rawText}`);
+    throw new Error(
+      `Failed to parse Gemini response as JSON: ${rawText}`
+    );
   }
+
+  // -----------------------------------
+  // Validate score
+  // -----------------------------------
 
   if (
     typeof parsed.score !== "number" ||
     parsed.score < 0 ||
     parsed.score > 100
   ) {
-    throw new Error("Gemini returned an invalid score.");
+    throw new Error(
+      "Gemini returned an invalid score."
+    );
+  }
+
+  if (
+    parsed.category !== "hot" &&
+    parsed.category !== "warm" &&
+    parsed.category !== "cold"
+  ) {
+    throw new Error(
+      "Gemini returned an invalid category."
+    );
   }
 
   if (!Array.isArray(parsed.reasons)) {
