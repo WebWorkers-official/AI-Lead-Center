@@ -89,58 +89,106 @@ Message: ${lead.message}`;
           }),
         }
       );
-
-      // Success
-      if (res.ok) {
-        break;
-      }
-
-      const errText = await res.text();
-
-      lastError = `Gemini API error (${res.status}): ${errText}`;
-
-      // Retry only temporary/rate-limit errors
-      if (
-        res.status !== 503 &&
-        res.status !== 429
-      ) {
-        throw new Error(lastError);
-      }
-
-      console.warn(
-        `Gemini temporary error (${res.status}). Attempt ${attempt}/${maxAttempts}.`
-      );
-
-      if (attempt < maxAttempts) {
-        const delay = 1500 * Math.pow(2, attempt - 1);
-
-        console.log(
-          `Retrying Gemini in ${delay}ms...`
-        );
-
-        await new Promise((resolve) =>
-          setTimeout(resolve, delay)
-        );
-      }
     } catch (error) {
-      if (error instanceof Error) {
-        lastError = error.message;
-      } else {
-        lastError = String(error);
-      }
+      // Network / fetch failure
+      lastError =
+        error instanceof Error
+          ? error.message
+          : String(error);
 
-      // If fetch itself failed, retry.
       if (attempt < maxAttempts) {
-        const delay = 1500 * Math.pow(2, attempt - 1);
+        const baseDelay =
+          2000 * Math.pow(2, attempt - 1);
+
+        const jitter = Math.random() * 1000;
+
+        const delay = Math.round(
+          baseDelay + jitter
+        );
 
         console.warn(
-          `Gemini request failed. Retrying in ${delay}ms...`
+          `Gemini request failed. Attempt ${attempt}/${maxAttempts}. Retrying in ${delay}ms...`
         );
 
         await new Promise((resolve) =>
           setTimeout(resolve, delay)
         );
       }
+
+      continue;
+    }
+
+    // -----------------------------------
+    // Success
+    // -----------------------------------
+
+    if (res.ok) {
+      break;
+    }
+
+    const errText = await res.text();
+
+    lastError = `Gemini API error (${res.status}): ${errText}`;
+
+    // -----------------------------------
+    // Daily quota exhaustion
+    // -----------------------------------
+    // A daily quota cannot be fixed by retrying
+    // after a few seconds, so stop immediately.
+
+    const isDailyQuotaExceeded =
+      res.status === 429 &&
+      (
+        errText.includes("GenerateRequestsPerDay") ||
+        errText.includes(
+          "generate_content_free_tier_requests"
+        ) ||
+        errText.includes("daily quota") ||
+        errText.includes("quota exceeded")
+      );
+
+    if (isDailyQuotaExceeded) {
+      console.warn(
+        "Gemini daily quota exhausted. Skipping unnecessary retries."
+      );
+
+      throw new Error(lastError);
+    }
+
+    // -----------------------------------
+    // Temporary errors
+    // -----------------------------------
+
+    const isRetryable =
+      res.status === 408 ||
+      res.status === 429 ||
+      res.status >= 500;
+
+    if (!isRetryable) {
+      throw new Error(lastError);
+    }
+
+    console.warn(
+      `Gemini temporary error (${res.status}). Attempt ${attempt}/${maxAttempts}.`
+    );
+
+    if (attempt < maxAttempts) {
+      const baseDelay =
+        2000 * Math.pow(2, attempt - 1);
+
+      const jitter = Math.random() * 1000;
+
+      const delay = Math.round(
+        baseDelay + jitter
+      );
+
+      console.log(
+        `Retrying Gemini in ${delay}ms...`
+      );
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, delay)
+      );
     }
   }
 
@@ -150,7 +198,8 @@ Message: ${lead.message}`;
 
   if (!res || !res.ok) {
     throw new Error(
-      lastError || "Gemini request failed after retries."
+      lastError ||
+        "Gemini request failed after retries."
     );
   }
 

@@ -27,6 +27,7 @@ type Lead = {
   phone: string | null;
   company: string | null;
   budget: string | null;
+  deal_value: number | null;
   message: string;
   ai_score: number | null;
   ai_category: string | null;
@@ -69,6 +70,44 @@ function recommendedAction(score: number | null) {
       return "Awaiting AI analysis.";
   }
 }
+function getFollowUpStatus(nextFollowUpAt: string | null) {
+  if (!nextFollowUpAt) {
+    return {
+      label: "NO FOLLOW-UP SET",
+      type: "none",
+    };
+  }
+
+  const followUpTime = new Date(nextFollowUpAt).getTime();
+  const now = Date.now();
+
+  if (followUpTime < now) {
+    return {
+      label: "FOLLOW-UP OVERDUE",
+      type: "overdue",
+    };
+  }
+
+  const today = new Date();
+  const followUpDate = new Date(nextFollowUpAt);
+
+  const isToday =
+    followUpDate.getFullYear() === today.getFullYear() &&
+    followUpDate.getMonth() === today.getMonth() &&
+    followUpDate.getDate() === today.getDate();
+
+  if (isToday) {
+    return {
+      label: "FOLLOW-UP DUE TODAY",
+      type: "today",
+    };
+  }
+
+  return {
+    label: "FOLLOW-UP UPCOMING",
+    type: "upcoming",
+  };
+}
 
 export default function LeadDetailsPage() {
   const router = useRouter();
@@ -87,6 +126,8 @@ export default function LeadDetailsPage() {
   const [sendError, setSendError] = useState("");
   const [followUpDate, setFollowUpDate] = useState("");
   const [savingFollowUp, setSavingFollowUp] = useState(false);
+  const [dealValue, setDealValue] = useState("");
+  const [savingDealValue, setSavingDealValue] = useState(false);
   const [isDark, setIsDark] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -112,11 +153,21 @@ export default function LeadDetailsPage() {
 
     if (error || !data) {
       setNotFound(true);
-    } else {
+    }
+    else {
       setLead(data as Lead);
+
       setReplyText((data as Lead).ai_suggested_reply || "");
+
       const nextFollowUp = (data as Lead).next_follow_up_at;
       setFollowUpDate(nextFollowUp ? nextFollowUp.slice(0, 16) : "");
+
+      const existingDealValue = (data as Lead).deal_value;
+      setDealValue(
+        existingDealValue !== null && existingDealValue !== undefined
+          ? String(existingDealValue)
+          : ""
+      );
     }
     setLoading(false);
   }, [leadId]);
@@ -197,6 +248,61 @@ export default function LeadDetailsPage() {
     }
   }
 
+  async function handleCall() {
+      if (!lead) return;
+
+      const now = new Date().toISOString();
+
+      const { error } = await supabase
+        .from("leads")
+        .update({
+          last_contacted_at: now,
+          status: lead.status === "new" ? "contacted" : lead.status,
+        })
+        .eq("id", lead.id);
+
+      if (!error) {
+        setLead({
+          ...lead,
+          last_contacted_at: now,
+          status: lead.status === "new" ? "contacted" : lead.status,
+        });
+      }
+
+      window.location.href = `tel:${lead.phone}`;
+  }
+
+  async function handleWhatsApp() {
+      if (!lead) return;
+
+      const now = new Date().toISOString();
+
+      const { error } = await supabase
+        .from("leads")
+        .update({
+          last_contacted_at: now,
+          status: lead.status === "new" ? "contacted" : lead.status,
+        })
+        .eq("id", lead.id);
+
+      if (!error) {
+        setLead({
+          ...lead,
+          last_contacted_at: now,
+          status: lead.status === "new" ? "contacted" : lead.status,
+        });
+      }
+
+      const phone = (lead.phone ?? "").replace(/[^\d]/g, "");
+
+      const message =
+        replyText || `Hi ${lead.name}, following up on your enquiry.`;
+
+      window.open(
+        `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+        "_blank"
+      );
+  }
   async function handleSaveFollowUp() {
     if (!lead) return;
     setSavingFollowUp(true);
@@ -212,6 +318,34 @@ export default function LeadDetailsPage() {
     setSavingFollowUp(false);
   }
 
+  async function handleSaveDealValue() {
+  if (!lead) return;
+
+  setSavingDealValue(true);
+
+  const value = dealValue.trim() === ""
+    ? null
+    : Number(dealValue);
+
+  if (value !== null && (Number.isNaN(value) || value < 0)) {
+    setSavingDealValue(false);
+    return;
+  }
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ deal_value: value })
+    .eq("id", lead.id);
+
+  if (!error) {
+    setLead({
+      ...lead,
+      deal_value: value,
+    });
+  }
+
+  setSavingDealValue(false);
+  }
   const bg = isDark ? "bg-[#0b0b0f] text-gray-100" : "bg-[#f6f8fc] text-gray-900";
   const cardBg = isDark
     ? "bg-[#111118]/80 backdrop-blur-sm border-white/[0.06]"
@@ -253,6 +387,9 @@ export default function LeadDetailsPage() {
   }
 
   const priority = priorityMeta(lead.ai_score);
+  const followUpStatus = getFollowUpStatus(
+  lead.next_follow_up_at
+);
 
   return (
     <div className={`min-h-screen font-['Inter',system-ui,sans-serif] antialiased ${bg}`}>
@@ -391,6 +528,35 @@ export default function LeadDetailsPage() {
                   </dt>
                   <dd className="font-medium text-right text-xs sm:text-sm">{lead.budget || "Not provided"}</dd>
                 </div>
+                <div className="border-b border-white/5 pb-2 sm:pb-3">
+                <dt className={`${mutedText} mb-1.5 flex items-center gap-1.5 text-xs sm:text-sm`}>
+                  <Wallet className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Deal Value
+                </dt>
+
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={dealValue}
+                    onChange={(e) => setDealValue(e.target.value)}
+                    placeholder="Enter deal value"
+                    className={`flex-1 rounded-lg px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition ${
+                      isDark
+                        ? "bg-white/[0.03] text-gray-200 border border-white/10 focus:border-blue-400/50"
+                        : "bg-gray-50 text-gray-800 border border-gray-200 focus:border-blue-400/50"
+                    }`}
+                  />
+
+                  <button
+                    onClick={handleSaveDealValue}
+                    disabled={savingDealValue}
+                    className="shrink-0 text-xs sm:text-sm font-bold rounded-lg px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white disabled:opacity-60 transition"
+                  >
+                    {savingDealValue ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </div>
                 <div className="flex justify-between gap-3 border-b border-white/5 pb-2 sm:pb-3">
                   <dt className={`${mutedText} flex items-center gap-1.5 text-xs sm:text-sm`}>
                     <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Submitted
@@ -475,6 +641,11 @@ export default function LeadDetailsPage() {
                       : "Not yet contacted"}
                   </div>
                 </div>
+                {lead.last_contacted_at && (
+                <p className={`text-[11px] sm:text-xs ${mutedText}`}>
+                  Schedule the next follow-up to keep this lead moving.
+                </p>
+              )}
                 <div>
                   <div className={`${mutedText} mb-1.5 text-xs sm:text-sm`}>Next Follow-Up</div>
                   <div className="flex flex-col sm:flex-row gap-2">
@@ -497,11 +668,33 @@ export default function LeadDetailsPage() {
                       {savingFollowUp ? "Saving…" : "Save"}
                     </button>
                   </div>
+                  <div
+                  className={`inline-flex items-center mt-2 rounded-full px-3 py-1.5 text-[10px] sm:text-xs font-bold tracking-wide ${
+                    followUpStatus.type === "overdue"
+                      ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                      : followUpStatus.type === "today"
+                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                      : followUpStatus.type === "upcoming"
+                      ? "bg-lime-500/10 text-lime-400 border border-lime-500/20"
+                      : isDark
+                      ? "bg-white/[0.04] text-gray-500 border border-white/10"
+                      : "bg-gray-100 text-gray-500 border border-gray-200"
+                  }`}
+                >
+                  {followUpStatus.type === "overdue"
+                    ? "🔴"
+                    : followUpStatus.type === "today"
+                    ? "🟡"
+                    : followUpStatus.type === "upcoming"
+                    ? "🟢"
+                    : "⚪"}{" "}
+                  {followUpStatus.label}
+                </div>
                 </div>
                 <div className="flex flex-wrap gap-2 pt-2">
                   {lead.phone && (
-                    <a
-                      href={`tel:${lead.phone}`}
+                    <button
+                      onClick={handleCall}
                       className={`flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 transition ${
                         isDark
                           ? "bg-white/[0.06] hover:bg-white/[0.12] text-white border border-white/10"
@@ -509,19 +702,16 @@ export default function LeadDetailsPage() {
                       }`}
                     >
                       <Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Call
-                    </a>
+                    </button>
                   )}
                   {lead.phone && (
-                    <a
-                      href={`https://wa.me/${lead.phone.replace(/[^\d]/g, "")}?text=${encodeURIComponent(
-                        replyText || `Hi ${lead.name}, following up on your enquiry.`
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-500 hover:bg-emerald-400 text-white shadow-sm transition"
-                    >
-                      <MessageCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> WhatsApp
-                    </a>
+                  <button
+                    onClick={handleWhatsApp}
+                    className="flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-500 hover:bg-emerald-400 text-white shadow-sm transition"
+                  >
+                    <MessageCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    WhatsApp
+                  </button>
                   )}
                   <a
                     href={`mailto:${lead.email}?body=${encodeURIComponent(replyText || "")}`}

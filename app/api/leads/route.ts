@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
       company,
       budget,
       message,
+      source,
     } = body;
 
     // -----------------------------
@@ -98,20 +99,21 @@ export async function POST(req: NextRequest) {
     // 5. Create lead
     // -----------------------------
 
-    const { data, error } = await supabaseAdmin
-      .from("leads")
-      .insert([
-        {
-          client_id: clientId,
-          name,
-          email,
-          phone: phone || null,
-          company: company || null,
-          budget: budget || null,
-          message,
-          status: "new",
-        },
-      ])
+  const { data, error } = await supabaseAdmin
+  .from("leads")
+  .insert([{
+    client_id: clientId,
+    name,
+    email,
+    phone: phone || null,
+    company: company || null,
+    budget: budget || null,
+    message,
+    source: source || "Website",
+    status: "new",
+    ai_status: "processing",
+  }])
+
       .select("id")
       .single();
 
@@ -148,16 +150,17 @@ waitUntil(
 
       console.log("Background AI scoring result:", result);
 
-      const { error: scoreError } = await supabaseAdmin
-        .from("leads")
-        .update({
-          ai_score: result.score,
-          ai_category: result.category,
-          ai_reasoning: result.reasoning,
-          ai_reasons_bullets: JSON.stringify(result.reasons),
-          ai_suggested_reply: result.suggested_reply,
-        })
-        .eq("id", leadId);
+    const { error: scoreError } = await supabaseAdmin
+      .from("leads")
+      .update({
+        ai_score: result.score,
+        ai_category: result.category,
+        ai_reasoning: result.reasoning,
+        ai_reasons_bullets: JSON.stringify(result.reasons),
+        ai_suggested_reply: result.suggested_reply,
+        ai_status: "completed",
+      })
+      .eq("id", leadId);
 
       if (scoreError) {
         console.error(
@@ -170,14 +173,28 @@ waitUntil(
           leadId
         );
       }
-    } catch (scoreError) {
-      console.error(
-        "BACKGROUND AI SCORING FAILED:",
-        scoreError
+      } catch (scoreError) {
+        console.error(
+          "BACKGROUND AI SCORING FAILED:",
+          scoreError
+        );
+
+        const { error: statusError } = await supabaseAdmin
+          .from("leads")
+          .update({
+            ai_status: "failed",
+          })
+          .eq("id", leadId);
+
+        if (statusError) {
+          console.error(
+            "FAILED TO SAVE AI FAILURE STATUS:",
+            statusError
+          );
+        }
+      }
+        })()
       );
-    }
-  })()
-);
 
 
     // -----------------------------

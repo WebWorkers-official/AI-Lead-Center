@@ -33,7 +33,7 @@ import {
   Menu,
 } from "lucide-react";
 
-const WORKSPACE_NAME = "DN Homes";
+const DEFAULT_WORKSPACE_NAME = "Workspace";
 
 type Lead = {
   id: string;
@@ -42,11 +42,13 @@ type Lead = {
   phone: string | null;
   company: string | null;
   budget: string | null;
+  deal_value: number | null;
   message: string;
   ai_score: number | null;
   ai_category: string | null;
   ai_reasoning: string | null;
   ai_suggested_reply: string | null;
+  ai_status: string | null;
   last_contacted_at: string | null;
   next_follow_up_at: string | null;
   status: string;
@@ -62,6 +64,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [workspaceName, setWorkspaceName] = useState(
+    DEFAULT_WORKSPACE_NAME
+  );
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(true);
@@ -129,18 +134,42 @@ export default function DashboardPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    async function init() {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        router.push("/login");
-        return;
+    useEffect(() => {
+      async function init() {
+        const { data } = await supabase.auth.getSession();
+
+        if (!data.session) {
+          router.push("/login");
+          return;
+        }
+
+        const userId = data.session.user.id;
+
+        const { data: membership, error: membershipError } = await supabase
+          .from("client_members")
+          .select("client_id")
+          .eq("user_id", userId)
+          .limit(1)
+          .maybeSingle();
+
+        if (!membershipError && membership?.client_id) {
+          const { data: client, error: clientError } = await supabase
+            .from("clients")
+            .select("name")
+            .eq("id", membership.client_id)
+            .maybeSingle();
+
+          if (!clientError && client?.name) {
+            setWorkspaceName(client.name);
+          }
+        }
+
+        setCheckingAuth(false);
+        fetchLeads();
       }
-      setCheckingAuth(false);
-      fetchLeads();
-    }
-    init();
-  }, [router, fetchLeads]);
+
+      init();
+    }, [router, fetchLeads]);
 
   // Click outside to close search dropdown
   useEffect(() => {
@@ -181,6 +210,26 @@ export default function DashboardPage() {
   const qualified = leads.filter((l) => (l.ai_score ?? 0) >= 40).length;
   const hot = leads.filter((l) => getPriorityCategory(l.ai_score) === "hot");
   const converted = leads.filter((l) => l.status === "won").length;
+  const pipelineValue = leads
+  .filter(
+    (l) =>
+      l.status === "new" ||
+      l.status === "contacted" ||
+      l.status === "qualified"
+  )
+  .reduce((sum, l) => sum + (l.deal_value ?? 0), 0);
+
+const potentialRevenue = leads
+  .filter((l) => l.status === "qualified")
+  .reduce((sum, l) => sum + (l.deal_value ?? 0), 0);
+
+const wonRevenue = leads
+  .filter((l) => l.status === "won")
+  .reduce((sum, l) => sum + (l.deal_value ?? 0), 0);
+
+const lostRevenue = leads
+  .filter((l) => l.status === "lost")
+  .reduce((sum, l) => sum + (l.deal_value ?? 0), 0);
 
   const needsFollowUp = leads.filter((l) => {
     if (l.next_follow_up_at && new Date(l.next_follow_up_at) <= new Date()) {
@@ -312,11 +361,11 @@ export default function DashboardPage() {
                     AI Command
                   </h1>
                   <p
-                    className={`text-[11px] font-medium tracking-wide truncate ${
+                    className={`text-[2xl] font-bold tracking-wide truncate ${
                       isDark ? "text-gray-500" : "text-gray-400"
                     }`}
                   >
-                    {WORKSPACE_NAME}
+                    {workspaceName}
                   </p>
                 </div>
               )}
@@ -459,8 +508,8 @@ export default function DashboardPage() {
                 <h1 className="text-lg font-extrabold tracking-[-0.02em] truncate bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
                   AI Command
                 </h1>
-                <p className={`text-[11px] font-medium tracking-wide truncate ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-                  {WORKSPACE_NAME}
+                <p className={`text-[2xl] font-bold tracking-wide truncate ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                  {workspaceName}
                 </p>
               </div>
               <button
@@ -796,7 +845,82 @@ export default function DashboardPage() {
               );
             })}
           </div>
+            {/* Revenue Metrics */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8 sm:mb-10 md:mb-12">
+            {[
+              {
+                label: "Pipeline Value",
+                value: pipelineValue,
+                icon: <BarChart3 className="w-4 h-4" />,
+                iconBg: "bg-blue-500/10",
+                iconText: "text-blue-400",
+              },
+              {
+                label: "Potential Revenue",
+                value: potentialRevenue,
+                icon: <TrendingUp className="w-4 h-4" />,
+                iconBg: "bg-emerald-500/10",
+                iconText: "text-emerald-400",
+              },
+              {
+                label: "Won Revenue",
+                value: wonRevenue,
+                icon: <Trophy className="w-4 h-4" />,
+                iconBg: "bg-purple-500/10",
+                iconText: "text-purple-400",
+              },
+              {
+                label: "Lost Revenue",
+                value: lostRevenue,
+                icon: <X className="w-4 h-4" />,
+                iconBg: "bg-red-500/10",
+                iconText: "text-red-400",
+              },
+            ].map((metric) => (
+              <div
+                key={metric.label}
+                className={`rounded-2xl p-4 sm:p-5 border transition-all duration-300 hover:-translate-y-1 ${
+                  isDark
+                    ? "bg-[#111118] border-white/[0.06] hover:border-white/[0.12]"
+                    : "bg-white border-gray-200/70 shadow-sm hover:shadow-md"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <span
+                    className={`flex items-center justify-center w-9 h-9 rounded-xl ${metric.iconBg} ${metric.iconText}`}
+                  >
+                    {metric.icon}
+                  </span>
 
+                  <Wallet
+                    className={`w-4 h-4 ${
+                      isDark ? "text-gray-600" : "text-gray-300"
+                    }`}
+                  />
+                </div>
+
+                <div
+                  className={`text-xl sm:text-2xl font-semibold tracking-tight tabular-nums ${
+                    isDark ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  {new Intl.NumberFormat("en-US", {
+                    style: "currency",
+                    currency: "USD",
+                    maximumFractionDigits: 0,
+                  }).format(metric.value)}
+                </div>
+
+                <div
+                  className={`text-[10px] sm:text-xs font-medium uppercase tracking-wider mt-1 ${
+                    isDark ? "text-gray-500" : "text-gray-500"
+                  }`}
+                >
+                  {metric.label}
+                </div>
+              </div>
+            ))}
+          </div>
           {/* Needs Follow-Up */}
           {(filter === "all" || filter === "followup") && needsFollowUp.length > 0 && (
             <div className="mb-8 sm:mb-10 md:mb-12">
@@ -1195,8 +1319,12 @@ export default function DashboardPage() {
                                 {lead.ai_score}/100
                               </span>
                             ) : (
-                              "—"
-                            )}
+                            lead.ai_status === "processing"
+                              ? "Processing..."
+                              : lead.ai_status === "failed"
+                              ? "Unavailable"
+                              : "—"
+                          )}
                           </td>
                           <td className="px-4 sm:px-5 py-3 sm:py-4">
                             {lead.ai_score !== null ? (
@@ -1225,7 +1353,11 @@ export default function DashboardPage() {
                                 );
                               })()
                             ) : (
-                              "—"
+                              lead.ai_status === "processing"
+                                ? "Processing"
+                                : lead.ai_status === "failed"
+                                ? "Unavailable"
+                                : "—"
                             )}
                           </td>
                           <td className="px-4 sm:px-5 py-3 sm:py-4" onClick={(e) => e.stopPropagation()}>
