@@ -42,6 +42,7 @@ type Lead = {
   phone: string | null;
   company: string | null;
   budget: string | null;
+  source: string | null;
   deal_value: number | null;
   message: string;
   ai_score: number | null;
@@ -1261,6 +1262,9 @@ const lostRevenue = leads
                         <th className="px-4 sm:px-5 py-3 sm:py-4 font-medium text-xs uppercase tracking-[0.08em]">
                           Company
                         </th>
+                        <th className="px-4 sm:px-5 py-3 sm:py-4 font-medium text-xs uppercase tracking-[0.08em]">
+                          Source
+                        </th>
                         <th className="px-4 sm:px-5 py-3 sm:py-4 font-medium text-xs uppercase tracking-[0.08em] text-right">
                           Score
                         </th>
@@ -1298,6 +1302,13 @@ const lostRevenue = leads
                             }`}
                           >
                             {lead.company || "—"}
+                          </td>
+                          <td
+                            className={`px-4 sm:px-5 py-3 sm:py-4 ${
+                              isDark ? "text-gray-400" : "text-gray-600"
+                            }`}
+                          >
+                            {lead.source || "Website"}
                           </td>
                           <td className="px-4 sm:px-5 py-3 sm:py-4 text-right">
                             {lead.ai_score !== null ? (
