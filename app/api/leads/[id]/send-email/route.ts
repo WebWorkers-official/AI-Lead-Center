@@ -89,7 +89,7 @@ export async function POST(
 
     await sendEmail({
       to: lead.email,
-      subject: `Re: Your enquiry`,
+      subject: `Thanks for your enquiry` + (lead.subject ? ` - ${lead.subject}` : ""),
       text: messageText,
     });
 
