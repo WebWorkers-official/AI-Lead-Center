@@ -1,13 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { authenticateApiKey } from "@/lib/authenticateApiKey";
 import { isLikelySpam } from "@/lib/spamCheck";
-import { waitUntil } from "@vercel/functions";
 import { scoreLead } from "@/lib/scoreLead";
 
-export async function POST(req: NextRequest) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { clientId: string } }
+) {
   try {
+    const clientId = params.clientId;
+
+    if (!clientId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Client ID is required.",
+        },
+        { status: 400 }
+      );
+    }
+
     const body = await req.json();
 
     const {
@@ -65,34 +79,37 @@ export async function POST(req: NextRequest) {
     }
 
     // -----------------------------
-    // 4. Authenticate API key
+    // 4. Verify client exists
     // -----------------------------
 
-    const apiKey = req.headers.get("X-RaveWebs-Key");
+    const { data: client, error: clientError } =
+      await supabaseAdmin
+        .from("clients")
+        .select("id")
+        .eq("id", clientId)
+        .maybeSingle();
 
-    if (!apiKey) {
+    if (clientError) {
+      console.error("Client lookup error:", clientError);
+
       return NextResponse.json(
         {
           success: false,
-          error: "API key is required.",
+          error: "Failed to verify client.",
         },
-        { status: 401 }
+        { status: 500 }
       );
     }
 
-    const auth = await authenticateApiKey(apiKey);
-
-    if (!auth.success) {
+    if (!client) {
       return NextResponse.json(
         {
           success: false,
-          error: auth.error,
+          error: "Invalid client.",
         },
-        { status: 401 }
+        { status: 404 }
       );
     }
-
-    const clientId = auth.clientId;
 
     // -----------------------------
     // 5. Validate custom fields
@@ -100,15 +117,10 @@ export async function POST(req: NextRequest) {
 
     let validatedCustomFields: {
       fieldId: string;
-      fieldName: string;
       value: string;
     }[] = [];
 
-    if (
-      customFields &&
-      typeof customFields === "object" &&
-      !Array.isArray(customFields)
-    ) {
+    if (customFields && typeof customFields === "object") {
       const { data: configuredFields, error: fieldsError } =
         await supabaseAdmin
           .from("custom_fields")
@@ -142,12 +154,10 @@ export async function POST(req: NextRequest) {
       )) {
         const field = configuredFieldMap.get(fieldName);
 
-        // Ignore fields that are not configured for this client
         if (!field) {
           continue;
         }
 
-        // Ignore empty values
         if (
           fieldValue === null ||
           fieldValue === undefined ||
@@ -158,7 +168,6 @@ export async function POST(req: NextRequest) {
 
         validatedCustomFields.push({
           fieldId: field.id,
-          fieldName: field.field_name,
           value: String(fieldValue),
         });
       }
@@ -192,7 +201,7 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error:
-              "Failed to save lead.",
+             "Failed to save lead.",
         },
         { status: 500 }
       );
@@ -227,19 +236,7 @@ export async function POST(req: NextRequest) {
     }
 
     // -----------------------------
-    // 8. Prepare custom fields for AI
-    // -----------------------------
-
-    const aiCustomFields = Object.fromEntries(
-      validatedCustomFields.map((field) => [
-        field.fieldName,
-        field.value,
-      ])
-    );
-
-    // -----------------------------
-    // 9. Process AI scoring
-    //    in background
+    // 8. Background AI scoring
     // -----------------------------
 
     waitUntil(
@@ -253,7 +250,6 @@ export async function POST(req: NextRequest) {
           const result = await scoreLead({
             name,
             message,
-            customFields: aiCustomFields,
           });
 
           const { error: scoreError } =
@@ -277,11 +273,6 @@ export async function POST(req: NextRequest) {
               "FAILED TO SAVE BACKGROUND AI SCORE:",
               scoreError
             );
-          } else {
-            console.log(
-              "BACKGROUND AI SCORE SAVED SUCCESSFULLY:",
-              leadId
-            );
           }
         } catch (scoreError) {
           console.error(
@@ -289,26 +280,18 @@ export async function POST(req: NextRequest) {
             scoreError
           );
 
-          const { error: statusError } =
-            await supabaseAdmin
-              .from("leads")
-              .update({
-                ai_status: "failed",
-              })
-              .eq("id", leadId);
-
-          if (statusError) {
-            console.error(
-              "FAILED TO SAVE AI FAILURE STATUS:",
-              statusError
-            );
-          }
+          await supabaseAdmin
+            .from("leads")
+            .update({
+              ai_status: "failed",
+            })
+            .eq("id", leadId);
         }
       })()
     );
 
     // -----------------------------
-    // 10. Return success
+    // 9. Return success
     // -----------------------------
 
     return NextResponse.json({
@@ -321,8 +304,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          "Something went wrong. Please try again.",
+        error: "Something went wrong. Please try again.",
       },
       { status: 500 }
     );

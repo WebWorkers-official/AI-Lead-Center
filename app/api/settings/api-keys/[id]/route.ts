@@ -66,12 +66,11 @@ export async function DELETE(
     }
 
     // --------------------------------
-    // 4. Only owner/admin can revoke
+    // 4. Only owner can revoke
     // --------------------------------
 
     if (
-      membership.role !== "owner" &&
-      membership.role !== "admin"
+      membership.role !== "owner"
     ) {
       return NextResponse.json(
         {

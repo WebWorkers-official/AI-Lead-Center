@@ -7,12 +7,62 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const body = await req.json().catch(() => ({}));
+    // 1. Authenticate the logged-in user
+    const authHeader = req.headers.get("authorization");
 
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { success: false, error: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    const accessToken = authHeader.substring(7);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseAdmin.auth.getUser(accessToken);
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { success: false, error: "Invalid authentication." },
+        { status: 401 }
+      );
+    }
+
+    // 2. Verify the user is an owner of a client
+    const { data: membership, error: membershipError } =
+      await supabaseAdmin
+        .from("client_members")
+        .select("client_id, role")
+        .eq("user_id", user.id)
+        .limit(1)
+        .single();
+
+    if (membershipError || !membership) {
+      return NextResponse.json(
+        { success: false, error: "Client membership not found." },
+        { status: 403 }
+      );
+    }
+
+    if (membership.role !== "owner") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "You do not have permission to send emails.",
+        },
+        { status: 403 }
+      );
+    }
+
+    // 3. Fetch the lead only if it belongs to the user's client
     const { data: lead, error: fetchError } = await supabaseAdmin
       .from("leads")
       .select("*")
       .eq("id", params.id)
+      .eq("client_id", membership.client_id)
       .single();
 
     if (fetchError || !lead) {
@@ -22,18 +72,24 @@ export async function POST(
       );
     }
 
-    const messageText: string | undefined = body.message || lead.ai_suggested_reply;
+    const body = await req.json().catch(() => ({}));
+
+    const messageText: string | undefined =
+      body.message || lead.ai_suggested_reply;
 
     if (!messageText) {
       return NextResponse.json(
-        { success: false, error: "No message content to send. Generate a response first." },
+        {
+          success: false,
+          error: "No message content to send. Generate a response first.",
+        },
         { status: 400 }
       );
     }
 
     await sendEmail({
       to: lead.email,
-      subject: `Re: Your enquiry${lead.company ? ` — ${lead.company}` : ""}`,
+      subject: `Re: Your enquiry`,
       text: messageText,
     });
 
@@ -45,7 +101,8 @@ export async function POST(
         email_sent_at: sentAt,
         status: lead.status === "new" ? "contacted" : lead.status,
       })
-      .eq("id", params.id);
+      .eq("id", params.id)
+      .eq("client_id", membership.client_id);
 
     if (updateError) {
       console.error("Email sent, but failed to record it:", updateError);
@@ -54,8 +111,9 @@ export async function POST(
     return NextResponse.json({ success: true, sentAt });
   } catch (err: any) {
     console.error("Send email error:", err);
+
     return NextResponse.json(
-      { success: false, error: err.message || "Failed to send email. Please try again." },
+      { success: false, error: "Failed to send email. Please try again." },
       { status: 500 }
     );
   }

@@ -20,8 +20,6 @@
      id uuid default gen_random_uuid() primary key,
      name text not null,
      email text not null,
-     company text,
-     budget text,
      message text,
      ai_score int,
      ai_category text,

@@ -14,9 +14,8 @@ interface LeadScoreResult {
 
 export async function scoreLead(lead: {
   name: string;
-  company?: string | null;
-  budget?: string | null;
   message: string;
+  customFields?: Record<string, string>;
 }): Promise<LeadScoreResult> {
   if (!GEMINI_API_KEY) {
     throw new Error(
@@ -24,39 +23,132 @@ export async function scoreLead(lead: {
     );
   }
 
-  const prompt = `You are a B2B lead qualification engine for an agency that sells AI automation services.
+  const customFieldsText =
+    lead.customFields &&
+    Object.keys(lead.customFields).length > 0
+      ? Object.entries(lead.customFields)
+          .map(([fieldName, value]) => `${fieldName}: ${value}`)
+          .join("\n")
+      : "No custom fields provided.";
+
+  const prompt = `You are a general-purpose lead qualification engine for a CRM system.
+
+Your job is to evaluate the quality, intent, readiness, and potential of a lead based ONLY on the information provided.
+
+The lead may belong to ANY type of business or industry, including real estate, roofing, recruitment, agencies, healthcare, finance, e-commerce, professional services, or other businesses.
+
+IMPORTANT:
+- Do NOT assume the business is RaveWebs.
+- Do NOT assume the business sells AI automation.
+- Do NOT assume a particular industry.
+- Do NOT reject or downgrade a lead because the business type is unknown.
+- Do NOT invent the client's products, services, prices, policies, or capabilities.
+- Evaluate the lead based on the information actually provided.
 
 Given this enquiry, analyze it and return ONLY a valid JSON object (no markdown, no code fences, no extra text) with this exact shape:
 
 {
-  "score": <integer 0-100, likelihood this lead converts to a paying client>,
+  "score": <integer 0-100, likelihood this lead represents a meaningful sales opportunity>,
   "category": "<hot|warm|cold>",
   "reasoning": "<one sentence summary of the overall assessment>",
   "reasons": ["<short phrase, 3-8 words>", "<short phrase>", "<short phrase>"],
   "suggested_reply": "<a short, personalized 2-3 sentence email reply to send this lead>"
 }
 
-Score using ONLY these four signals:
-1. Stated budget — a real number/range carries significant weight
-2. Urgency / timeline — a stated start date or urgency increases the score
-3. The message itself — specificity and clarity of what they're asking for
-4. Specific need described — a concrete request beats a vague one
+Evaluate the lead using these qualification signals:
 
-Do NOT factor in the company name, how established the company sounds, or company size. Many legitimate leads are brand-new startups or solo founders — do not penalize them for that. The company field is context only, never a scoring input.
+1. Intent / buying interest
+   - Look for evidence that the person genuinely wants the product, service, property, solution, appointment, or outcome they are enquiring about.
+   - Clear interest in taking the next step is a strong signal.
+   - Questions showing genuine purchase or project intent can indicate a meaningful opportunity.
 
-Do NOT score based on message length. A short message that clearly states a budget and a specific need should score just as high as a long one with the same signals. A long message that is vague or generic should NOT score higher just because it's long.
+2. Urgency / timeline
+   - A stated start date, deadline, appointment date, preferred date, or clear urgency can increase the score.
+   - A requested site visit, consultation, demo, meeting, appointment, or similar next step can indicate stronger intent.
+   - If no timeline is provided, do not automatically treat that as negative.
 
-If a signal is missing (e.g. no budget mentioned, no timeline), note that specifically in "reasons" rather than assuming it's bad — missing info is a reason to ask a follow-up question, not automatically a low score.
+3. Specificity and clarity
+   - Consider how clearly the lead explains what they want.
+   - Specific requirements are stronger than vague enquiries.
+   - Do NOT score based on message length.
 
-Category: hot = 70-100, warm = 40-69, cold = 0-39
+4. Custom Fields
+   - Custom Fields are client-defined information collected through the lead form.
+   - Field names and values can be completely different for different clients.
+   - Understand each field according to its name and value.
+   - Use relevant custom fields as qualification evidence when they provide useful information about intent, readiness, requirements, timeline, budget, preferences, or next steps.
+   - Do NOT assume every custom field has equal importance.
+   - Do NOT assume a missing custom field means the lead is low quality.
+   - Do NOT invent the meaning of an ambiguous field.
+   - If a custom field clearly indicates strong intent or readiness, it may meaningfully increase the score.
+   - If a custom field provides useful context but does not indicate buying intent, use it as supporting information rather than automatically increasing the score.
 
-"reasons" should be 2-4 short, specific bullet phrases (not full sentences) that together justify the score — e.g. "Clear budget stated", "No timeline mentioned", "Specific automation need described"
+5. Overall opportunity
+   - Consider all available information together.
+   - Strong signals across multiple areas should produce a higher score.
+   - Weak or vague signals should produce a lower score.
+   - Do not let one field determine the entire score by itself.
+   - Do not invent missing information.
+   - Do not penalize the lead simply because certain information was not provided.
+
+Important scoring principles:
+
+- A lead with clear intent, specific requirements, and a concrete next step can be highly qualified.
+- A lead with useful Custom Fields but weak intent should not automatically be classified as hot.
+- A lead with a specific message but no timeline can still be valuable.
+- A lead with a timeline or date but no clear intent should not automatically be classified as hot.
+- Budget information can be useful when provided, but budget alone does not determine lead quality.
+- Dates, appointments, site visits, demos, consultations, or other concrete next steps can be strong intent signals.
+- Do not score based on message length.
+- Do not assume industry-specific information that is not provided.
+- Keep the score between 0 and 100.
+
+Category:
+- hot = 70-100
+- warm = 40-69
+- cold = 0-39
+
+"reasons" should contain 2-4 short, specific phrases (not full sentences) that directly explain the score.
+
+Good examples:
+- "Clear purchase intent"
+- "Specific requirement provided"
+- "Site visit requested"
+- "Preferred date provided"
+- "Budget information provided"
+- "Detailed project requirements"
+- "No clear timeline"
+- "Vague enquiry"
+- "Next step not specified"
+
+Avoid generic reasons such as:
+- "Good lead"
+- "Bad lead"
+- "Seems interested"
+
+Suggested reply rules:
+
+- Write the reply as if it is being sent by the business that received the enquiry.
+- Do NOT mention RaveWebs.
+- Do NOT claim what the business sells or provides unless that information is explicitly available in the lead information.
+- Do NOT invent prices, availability, features, locations, guarantees, or policies.
+- Naturally acknowledge useful information from the message or Custom Fields.
+- Do not repeat every Custom Field.
+- If the lead provided a date, budget, property type, project type, appointment request, site visit request, or similar useful information, acknowledge it naturally when relevant.
+- If important information is missing, ask a useful follow-up question.
+- Keep the reply professional, natural, and concise.
+- Return a 2-3 sentence reply.
+- Do not use placeholders.
 
 Lead details:
+
 Name: ${lead.name}
-Company: ${lead.company || "Not provided"}
-Budget: ${lead.budget || "Not provided"}
-Message: ${lead.message}`;
+
+Message:
+${lead.message}
+
+Custom Fields:
+${customFieldsText}`;
 
   // -----------------------------------
   // Gemini request with retry handling
@@ -133,8 +225,6 @@ Message: ${lead.message}`;
     // -----------------------------------
     // Daily quota exhaustion
     // -----------------------------------
-    // A daily quota cannot be fixed by retrying
-    // after a few seconds, so stop immediately.
 
     const isDailyQuotaExceeded =
       res.status === 429 &&

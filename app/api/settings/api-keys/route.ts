@@ -64,12 +64,11 @@ export async function POST(req: NextRequest) {
     }
 
     // --------------------------------
-    // 4. Only owner/admin can create keys
+    // 4. Only owner can create keys
     // --------------------------------
 
     if (
-      membership.role !== "owner" &&
-      membership.role !== "admin"
+      membership.role !== "owner"
     ) {
       return NextResponse.json(
         {
@@ -139,7 +138,6 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error:
-            error?.message ||
             "Failed to create API key.",
         },
         { status: 500 }
