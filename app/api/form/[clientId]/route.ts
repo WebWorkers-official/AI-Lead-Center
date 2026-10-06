@@ -5,6 +5,94 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isLikelySpam } from "@/lib/spamCheck";
 import { scoreLead } from "@/lib/scoreLead";
 
+//export async function GET//
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { clientId: string } }
+) {
+  try {
+    const clientId = params.clientId;
+
+    if (!clientId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Client ID is required.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Verify client exists
+    const { data: client, error: clientError } =
+      await supabaseAdmin
+        .from("clients")
+        .select("id")
+        .eq("id", clientId)
+        .maybeSingle();
+
+    if (clientError) {
+      console.error("Client lookup error:", clientError);
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to verify client.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!client) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid client.",
+        },
+        { status: 404 }
+      );
+    }
+
+    // Load only the custom-field configuration needed by the public form
+    const { data: fields, error: fieldsError } =
+      await supabaseAdmin
+        .from("custom_fields")
+        .select(
+          "id, field_name, field_type, required, options, display_order"
+        )
+        .eq("client_id", clientId)
+        .order("display_order", { ascending: true });
+
+    if (fieldsError) {
+      console.error("Custom fields lookup error:", fieldsError);
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to load form fields.",
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      fields: fields || [],
+    });
+  } catch (err) {
+    console.error("Unexpected error loading form fields:", err);
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Something went wrong. Please try again.",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+//export async function POST//
 export async function POST(
   req: NextRequest,
   { params }: { params: { clientId: string } }

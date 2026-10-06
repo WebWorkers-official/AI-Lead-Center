@@ -31,22 +31,31 @@ export default function ClientLeadForm() {
 
       setLoadingFields(true);
 
-      const { data, error } = await supabase
-        .from("custom_fields")
-        .select(
-          "id, field_name, field_type, required, options, display_order"
-        )
-        .eq("client_id", clientId)
-        .order("display_order", { ascending: true });
+      try {
+        const res = await fetch(`/api/form/${clientId}`);
 
-      if (error) {
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          console.error("Failed to load custom fields:", data.error);
+
+          setErrorMsg(
+            data.error || "Unable to load this form."
+          );
+
+          setFields([]);
+          return;
+        }
+
+        setFields((data.fields || []) as CustomField[]);
+      } catch (error) {
         console.error("Failed to load custom fields:", error);
-        setErrorMsg("Unable to load this form.");
-      } else {
-        setFields((data || []) as CustomField[]);
-      }
 
-      setLoadingFields(false);
+        setErrorMsg("Unable to load this form.");
+        setFields([]);
+      } finally {
+        setLoadingFields(false);
+      }
     }
 
     loadCustomFields();

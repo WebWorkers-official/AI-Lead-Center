@@ -5,7 +5,7 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY as string;
 
 // Resend's shared test sender. Works immediately, but can only send to
 // YOUR OWN account email until you verify a custom domain in Resend.
-const FROM_ADDRESS = "AI Lead Command Center <info@ravewebs.in>";
+const FROM_ADDRESS = "Ravewebs <info@ravewebs.in>";
 
 export async function sendEmail({
   to,
